@@ -1,0 +1,165 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# CC - Claude Code Session Manager
+# Easily bookmark and resume Claude Code sessions with tags
+#
+# Usage:
+#   cc              - Continue session in current dir, or start new
+#   cc <tag>        - Resume session bookmarked with <tag>
+#   cc -l, --list   - List all bookmarked sessions
+#   cc -h, --help   - Show help
+#
+# Bookmarking (in Claude Code):
+#   /bm tag1 tag2   - Bookmark current session with tags
+
+require 'json'
+require 'fileutils'
+
+CONFIG_DIR = File.expand_path('~/.cc-sessions')
+BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
+COMMAND_SOURCE = File.expand_path('../commands/bm.md', __dir__)
+COMMAND_DEST = File.expand_path('~/.claude/commands/bm.md')
+
+def ensure_setup
+  # Create config directory
+  FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
+
+  # Install /bm command if not present
+  unless File.exist?(COMMAND_DEST)
+    if File.exist?(COMMAND_SOURCE)
+      FileUtils.mkdir_p(File.dirname(COMMAND_DEST))
+      FileUtils.cp(COMMAND_SOURCE, COMMAND_DEST)
+      puts "Installed /bm command to #{COMMAND_DEST}"
+      puts "You can now use '/bm tag1 tag2' in Claude Code to bookmark sessions."
+      puts
+    end
+  end
+end
+
+def load_bookmarks
+  return {} unless File.exist?(BOOKMARKS_FILE)
+  JSON.parse(File.read(BOOKMARKS_FILE))
+rescue JSON::ParserError
+  {}
+end
+
+def find_session_by_tag(tag)
+  bookmarks = load_bookmarks
+  bookmarks.each do |path, tags|
+    return path if tags.include?(tag)
+  end
+  nil
+end
+
+def session_exists_in_dir?(dir)
+  # Check for .claude directory with session files
+  claude_dir = File.join(dir, '.claude')
+  return false unless Dir.exist?(claude_dir)
+
+  # Look for conversation files or other session indicators
+  Dir.glob(File.join(claude_dir, '**/*')).any? { |f| File.file?(f) }
+end
+
+def list_bookmarks
+  bookmarks = load_bookmarks
+
+  if bookmarks.empty?
+    puts "No bookmarked sessions."
+    puts
+    puts "To bookmark a session, use '/bm tag1 tag2' in Claude Code."
+    return
+  end
+
+  puts "Bookmarked Claude Code sessions:"
+  puts
+
+  bookmarks.each do |path, tags|
+    exists = Dir.exist?(path) ? '' : ' [NOT FOUND]'
+    puts "#{path}#{exists}"
+    puts "  Tags: #{tags.join(', ')}"
+    puts
+  end
+end
+
+def show_help
+  puts <<~HELP
+    CC - Claude Code Session Manager
+
+    Easily bookmark and resume Claude Code sessions with tags.
+
+    USAGE:
+      cc              Continue session in current directory, or start new
+      cc <tag>        Resume session bookmarked with <tag>
+      cc -l, --list   List all bookmarked sessions
+      cc -h, --help   Show this help
+
+    BOOKMARKING (inside Claude Code):
+      /bm tag1 tag2   Bookmark current session with one or more tags
+
+    EXAMPLES:
+      cc rtfm         Resume session tagged 'rtfm'
+      cc              Continue in current dir or start fresh
+      cc -l           Show all bookmarked sessions
+
+    FILES:
+      ~/.cc-sessions/bookmarks.json   Bookmark storage
+      ~/.claude/commands/bm.md        The /bm command definition
+
+    FIRST RUN:
+      On first run, cc installs the /bm command to ~/.claude/commands/
+      This enables the '/bm' command inside Claude Code sessions.
+  HELP
+end
+
+def resume_session(path)
+  unless Dir.exist?(path)
+    puts "Error: Directory not found: #{path}"
+    exit 1
+  end
+
+  Dir.chdir(path) do
+    puts "Resuming session in: #{path}"
+    # Use -c to continue most recent session in this directory (no picker)
+    exec('claude', '-c')
+  end
+end
+
+def continue_or_start
+  if session_exists_in_dir?(Dir.pwd)
+    exec('claude', '-c')
+  else
+    exec('claude')
+  end
+end
+
+# Main
+ensure_setup
+
+case ARGV[0]
+when '-h', '--help'
+  show_help
+when '-l', '--list'
+  list_bookmarks
+when nil
+  continue_or_start
+else
+  tag = ARGV[0]
+  path = find_session_by_tag(tag)
+
+  if path
+    resume_session(path)
+  else
+    puts "No session found with tag '#{tag}'"
+    puts
+    puts "Available tags:"
+    bookmarks = load_bookmarks
+    if bookmarks.empty?
+      puts "  (none - use '/bm tag1 tag2' in Claude Code to bookmark)"
+    else
+      all_tags = bookmarks.values.flatten.uniq.sort
+      all_tags.each { |t| puts "  #{t}" }
+    end
+    exit 1
+  end
+end
