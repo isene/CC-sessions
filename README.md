@@ -1,32 +1,38 @@
 # CC-sessions
 
-A simple tool for bookmarking and resuming Claude Code sessions with tags.
+![Ruby](https://img.shields.io/badge/language-Ruby-red) [![Gem Version](https://badge.fury.io/rb/cc-sessions.svg)](https://badge.fury.io/rb/cc-sessions) ![Unlicense](https://img.shields.io/badge/license-Unlicense-green)
 
-## The Problem
+<img src="img/cc-sessions_logo.svg" align="left" width="150" height="150">
+
+A simple tool for bookmarking and resuming Claude Code sessions with tags.
 
 Claude Code sessions are tied to directories, making it hard to remember where
 you were working on specific projects. This tool lets you tag sessions with
 meaningful names and quickly resume them.
+
+<br clear="left"/>
 
 ## Features
 
 - **Bookmark sessions** with `/bm tag1 tag2` inside Claude Code
 - **Resume sessions** with `cc tag` from anywhere
 - **List bookmarks** with `cc -l`
-- **Auto-install** the `/bm` command on first run
+- **Auto-install** the `/bm` command and permission on first run
 
 ## Installation
 
+### From RubyGems (Recommended)
+
 ```bash
-# Clone the repository
+gem install cc-sessions
+```
+
+### From Source
+
+```bash
 git clone https://github.com/isene/CC-sessions.git
 cd CC-sessions
-
-# Add to your PATH (add to .zshrc or .bashrc)
-export PATH="$HOME/path/to/CC-sessions/bin:$PATH"
-
-# Or create a symlink
-ln -sf /path/to/CC-sessions/bin/cc ~/bin/cc
+./install.sh
 ```
 
 ## Usage
@@ -60,8 +66,11 @@ cc -h
 
 ### First Run
 
-On first run, `cc` automatically installs the `/bm` command to `~/.claude/commands/`.
-This enables the `/bm` command inside Claude Code.
+On first run, `cc` automatically:
+1. Installs the `/bm` command to `~/.claude/commands/`
+2. Adds auto-accept permission to `~/.claude/settings.json`
+
+This enables `/bm` to work without confirmation prompts.
 
 ## Files
 
@@ -69,6 +78,7 @@ This enables the `/bm` command inside Claude Code.
 |------|---------|
 | `~/.cc-sessions/bookmarks.json` | Stores your bookmarks |
 | `~/.claude/commands/bm.md` | The `/bm` command definition |
+| `~/.claude/settings.json` | Permission for auto-accept |
 
 ## Example Workflow
 
@@ -91,4 +101,4 @@ cc rtfm    # Instantly back in that session
 
 ## License
 
-MIT
+This software is released into the public domain under [The Unlicense](https://unlicense.org/).

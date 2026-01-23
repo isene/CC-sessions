@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] - 2025-01-23
+
+### Added
+- `cc-bookmark` helper script for reliable permission matching
+- SVG logo
+
+### Changed
+- `/bm` command now uses `cc-bookmark` script (auto-accepts without prompts)
+- Updated README with badges and proper logo placement
+
 ## [1.0.1] - 2025-01-23
 
 ### Added

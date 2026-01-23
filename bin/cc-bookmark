@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# CC-Bookmark - Helper script for /bm command
+# Bookmarks the current directory with tags
+
+require 'json'
+require 'fileutils'
+
+CONFIG_DIR = File.expand_path('~/.cc-sessions')
+BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
+
+FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
+
+bookmarks = if File.exist?(BOOKMARKS_FILE)
+              JSON.parse(File.read(BOOKMARKS_FILE))
+            else
+              {}
+            end
+
+cwd = Dir.pwd
+tags = ARGV
+
+if tags.empty?
+  if bookmarks[cwd]
+    puts "Current bookmark: #{bookmarks[cwd].join(', ')}"
+  else
+    puts "No bookmark for this directory. Usage: /bm tag1 tag2 ..."
+  end
+else
+  bookmarks[cwd] = tags
+  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+  puts "Bookmarked: #{cwd}"
+  puts "Tags: #{tags.join(', ')}"
+  puts ""
+  puts "Resume later with: cc #{tags.first}"
+end

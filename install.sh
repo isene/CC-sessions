@@ -7,10 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Installing CC-sessions..."
 
-# Create symlink in ~/bin
+# Create symlinks in ~/bin
 if [ -d "$HOME/bin" ]; then
     ln -sf "$SCRIPT_DIR/bin/cc" "$HOME/bin/cc"
-    echo "Created symlink: ~/bin/cc -> $SCRIPT_DIR/bin/cc"
+    ln -sf "$SCRIPT_DIR/bin/cc-bookmark" "$HOME/bin/cc-bookmark"
+    echo "Created symlinks: ~/bin/cc, ~/bin/cc-bookmark"
 else
     echo "~/bin does not exist. Add $SCRIPT_DIR/bin to your PATH manually:"
     echo "  export PATH=\"$SCRIPT_DIR/bin:\$PATH\""
@@ -23,7 +24,7 @@ echo "Installed /bm command to ~/.claude/commands/bm.md"
 
 # Add auto-accept permission for /bm command
 SETTINGS_FILE="$HOME/.claude/settings.json"
-BM_PERMISSION='Bash(mkdir -p ~/.cc-sessions:*)'
+BM_PERMISSION='Bash(cc-bookmark:*)'
 
 if [ -f "$SETTINGS_FILE" ]; then
     if ! grep -q "$BM_PERMISSION" "$SETTINGS_FILE" 2>/dev/null; then
