@@ -21,7 +21,7 @@ BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
 COMMAND_SOURCE = File.expand_path('../commands/bm.md', __dir__)
 COMMAND_DEST = File.expand_path('~/.claude/commands/bm.md')
 SETTINGS_FILE = File.expand_path('~/.claude/settings.json')
-BM_PERMISSION = 'Bash(mkdir -p ~/.cc-sessions && ruby -rjson:*)'
+BM_PERMISSION = 'Bash(mkdir -p ~/.cc-sessions:*)'
 
 def ensure_setup
   # Create config directory

@@ -23,7 +23,7 @@ echo "Installed /bm command to ~/.claude/commands/bm.md"
 
 # Add auto-accept permission for /bm command
 SETTINGS_FILE="$HOME/.claude/settings.json"
-BM_PERMISSION='Bash(mkdir -p ~/.cc-sessions && ruby -rjson:*)'
+BM_PERMISSION='Bash(mkdir -p ~/.cc-sessions:*)'
 
 if [ -f "$SETTINGS_FILE" ]; then
     if ! grep -q "$BM_PERMISSION" "$SETTINGS_FILE" 2>/dev/null; then
