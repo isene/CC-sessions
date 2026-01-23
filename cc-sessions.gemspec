@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "cc-sessions"
-  spec.version       = "1.0.0"
+  spec.version       = "1.0.1"
   spec.authors       = ["Geir Isene"]
   spec.email         = ["g@isene.com"]
 
@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
                        "Tag sessions with meaningful names using /bm inside Claude Code, " \
                        "then quickly resume them with 'cc <tag>' from anywhere."
   spec.homepage      = "https://github.com/isene/CC-sessions"
-  spec.license       = "MIT"
+  spec.license       = "Unlicense"
 
   spec.required_ruby_version = ">= 2.7.0"
 

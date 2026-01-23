@@ -20,6 +20,8 @@ CONFIG_DIR = File.expand_path('~/.cc-sessions')
 BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
 COMMAND_SOURCE = File.expand_path('../commands/bm.md', __dir__)
 COMMAND_DEST = File.expand_path('~/.claude/commands/bm.md')
+SETTINGS_FILE = File.expand_path('~/.claude/settings.json')
+BM_PERMISSION = 'Bash(mkdir -p ~/.cc-sessions && ruby -rjson:*)'
 
 def ensure_setup
   # Create config directory
@@ -35,6 +37,31 @@ def ensure_setup
       puts
     end
   end
+
+  # Add auto-accept permission for /bm command
+  ensure_permission
+end
+
+def ensure_permission
+  settings = if File.exist?(SETTINGS_FILE)
+               JSON.parse(File.read(SETTINGS_FILE))
+             else
+               {}
+             end
+
+  settings['permissions'] ||= {}
+  settings['permissions']['allow'] ||= []
+
+  unless settings['permissions']['allow'].include?(BM_PERMISSION)
+    settings['permissions']['allow'] << BM_PERMISSION
+    FileUtils.mkdir_p(File.dirname(SETTINGS_FILE))
+    File.write(SETTINGS_FILE, JSON.pretty_generate(settings))
+    puts "Added auto-accept permission for /bm command"
+    puts
+  end
+rescue JSON::ParserError
+  # If settings.json is malformed, skip permission setup
+  warn "Warning: Could not parse ~/.claude/settings.json - skipping permission setup"
 end
 
 def load_bookmarks
