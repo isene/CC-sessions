@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0] - 2025-01-23
+
+### Added
+- Interactive session picker with `cc -l` (no external dependencies)
+- Delete bookmarks with `d` key in list (with confirmation)
+- Delete bookmarks from CLI with `cc -d <tag>`
+- Vim-style navigation (j/k) in addition to arrow keys
+
+### Changed
+- `cc -l` now shows interactive list with hidden cursor
+- Zero external dependencies (removed tty-prompt)
+
 ## [1.0.2] - 2025-01-23
 
 ### Added

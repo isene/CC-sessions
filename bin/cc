@@ -15,6 +15,14 @@
 
 require 'json'
 require 'fileutils'
+require 'io/console'
+
+# Simple ANSI helpers
+def cyan(s)  = "\e[36m#{s}\e[0m"
+def dim(s)   = "\e[2m#{s}\e[0m"
+def red(s)   = "\e[31m#{s}\e[0m"
+def rev(s)   = "\e[7m#{s}\e[0m"
+def clear_line = "\e[2K\r"
 
 CONFIG_DIR = File.expand_path('~/.cc-sessions')
 BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
@@ -88,6 +96,43 @@ def session_exists_in_dir?(dir)
   Dir.glob(File.join(claude_dir, '**/*')).any? { |f| File.file?(f) }
 end
 
+def read_key
+  input = $stdin.getch
+  if input == "\e"
+    begin
+      input << $stdin.read_nonblock(3)
+    rescue IO::WaitReadable
+    end
+  end
+  case input
+  when "\e[A", "k" then :up
+  when "\e[B", "j" then :down
+  when "\r", "\n"  then :enter
+  when "q", "\e"   then :quit
+  when "d"         then :delete
+  else nil
+  end
+end
+
+def save_bookmarks(bookmarks)
+  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+end
+
+def delete_bookmark_by_tag(tag)
+  bookmarks = load_bookmarks
+  path = find_session_by_tag(tag)
+
+  if path
+    bookmarks.delete(path)
+    save_bookmarks(bookmarks)
+    puts "Deleted bookmark: #{path}"
+    puts "  (was tagged: #{tag})"
+  else
+    puts "No session found with tag '#{tag}'"
+    exit 1
+  end
+end
+
 def list_bookmarks
   bookmarks = load_bookmarks
 
@@ -98,14 +143,93 @@ def list_bookmarks
     return
   end
 
-  puts "Bookmarked Claude Code sessions:"
-  puts
+  items = bookmarks.map do |path, tags|
+    { path: path, tags: tags, exists: Dir.exist?(path) }
+  end
 
-  bookmarks.each do |path, tags|
-    exists = Dir.exist?(path) ? '' : ' [NOT FOUND]'
-    puts "#{path}#{exists}"
-    puts "  Tags: #{tags.join(', ')}"
-    puts
+  index = 0
+  puts "Select session (↑/↓/j/k move, Enter select, d delete, q quit):\n\n"
+
+  # Hide cursor
+  print "\e[?25l"
+
+  begin
+    loop do
+      # Render list
+      items.each_with_index do |item, i|
+        print clear_line
+        tag_str = cyan(item[:tags].join(', '))
+        path_str = dim(item[:path])
+        missing = item[:exists] ? '' : red(' [NOT FOUND]')
+        line = "#{tag_str} → #{path_str}#{missing}"
+
+        if i == index
+          puts "▸ #{line}"
+        else
+          puts "  #{line}"
+        end
+      end
+
+      # Move cursor back to start
+      print "\e[#{items.size}A"
+
+      key = read_key
+      case key
+      when :up
+        index = (index - 1) % items.size
+      when :down
+        index = (index + 1) % items.size
+      when :delete
+        # Show confirmation
+        old_size = items.size
+        print "\e[#{old_size}B"  # Move below list
+        print clear_line
+        print "Delete '#{items[index][:tags].join(', ')}'? (y/n) "
+        confirm = $stdin.getch
+        if confirm.downcase == 'y'
+          bookmarks.delete(items[index][:path])
+          save_bookmarks(bookmarks)
+          items.delete_at(index)
+          index = [index, items.size - 1].min
+          if items.empty?
+            # Clear list and confirmation line
+            print "\e[#{old_size}A"
+            (old_size + 1).times { print clear_line; puts }
+            print "\e[#{old_size + 1}A"
+            puts "All bookmarks deleted."
+            return
+          end
+          # Clear old list (one more line than new size)
+          print clear_line
+          print "\e[#{old_size}A"
+          (old_size).times { print clear_line; puts }
+          print "\e[#{old_size}A"
+        else
+          print clear_line
+          print "\e[#{old_size}A"
+        end
+      when :enter
+        # Clear the menu
+        (items.size).times { print clear_line; puts }
+        print "\e[#{items.size}A"
+
+        if items[index][:exists]
+          print "\e[?25h"  # Show cursor before exec
+          resume_session(items[index][:path])
+        else
+          puts red("Directory not found: #{items[index][:path]}")
+        end
+        return
+      when :quit
+        # Clear the menu
+        (items.size).times { print clear_line; puts }
+        print "\e[#{items.size}A"
+        return
+      end
+    end
+  ensure
+    # Always show cursor
+    print "\e[?25h"
   end
 end
 
@@ -118,7 +242,8 @@ def show_help
     USAGE:
       cc              Continue session in current directory, or start new
       cc <tag>        Resume session bookmarked with <tag>
-      cc -l, --list   List all bookmarked sessions
+      cc -l, --list   List all bookmarked sessions (interactive)
+      cc -d, --delete <tag>  Delete bookmark matching <tag>
       cc -h, --help   Show this help
 
     BOOKMARKING (inside Claude Code):
@@ -127,7 +252,8 @@ def show_help
     EXAMPLES:
       cc rtfm         Resume session tagged 'rtfm'
       cc              Continue in current dir or start fresh
-      cc -l           Show all bookmarked sessions
+      cc -l           Show interactive list (d to delete, Enter to select)
+      cc -d rtfm      Delete bookmark tagged 'rtfm'
 
     FILES:
       ~/.cc-sessions/bookmarks.json   Bookmark storage
@@ -168,6 +294,14 @@ when '-h', '--help'
   show_help
 when '-l', '--list'
   list_bookmarks
+when '-d', '--delete'
+  if ARGV[1]
+    delete_bookmark_by_tag(ARGV[1])
+  else
+    puts "Usage: cc -d <tag>"
+    puts "Delete bookmark matching the given tag."
+    exit 1
+  end
 when nil
   continue_or_start
 else
