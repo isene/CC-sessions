@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2025-01-23
+
+### Added
+- `/bm?` command to check current bookmark status
+
 ## [1.1.1] - 2025-01-23
 
 ### Changed

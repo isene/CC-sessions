@@ -15,6 +15,7 @@ meaningful names and quickly resume them.
 ## Features
 
 - **Bookmark sessions** with `/bm tag1 tag2` inside Claude Code
+- **Check bookmark** with `/bm?` to see current tags
 - **Resume sessions** with `cc tag` from anywhere
 - **Interactive list** with `cc -l` (arrow keys or j/k to navigate)
 - **Delete bookmarks** with `d` in list or `cc -d tag`
@@ -44,7 +45,8 @@ cd CC-sessions
 Inside a Claude Code session, use the `/bm` command:
 
 ```
-/bm rtfm ruby filemanager
+/bm rtfm ruby filemanager   # Bookmark with tags
+/bm?                        # Show current bookmark status
 ```
 
 This bookmarks the current session with three tags. You can later resume it

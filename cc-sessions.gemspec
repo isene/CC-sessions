@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "cc-sessions"
-  spec.version       = "1.1.1"
+  spec.version       = "1.1.2"
   spec.authors       = ["Geir Isene"]
   spec.email         = ["g@isene.com"]
 

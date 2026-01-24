@@ -4,22 +4,25 @@ Bookmark the current Claude Code session with tags for easy resumption later.
 
 ## Arguments
 
-The user provides space-separated tags after `/bm`. For example:
-- `/bm rtfm` - one tag
-- `/bm rtfm ruby filemanager` - multiple tags
+- `/bm tag1 tag2` - Bookmark with tags
+- `/bm?` or `/bm ?` - Show current bookmark status
 
 ## What to Do
 
-Run the cc-bookmark command with the provided tags:
+If the argument is `?` or empty after `/bm?`:
+```bash
+cc-bookmark
+```
 
+Otherwise, run with the provided tags:
 ```bash
 cc-bookmark $TAGS
 ```
 
 Replace `$TAGS` with the actual tags provided by the user.
 
-## Example
+## Examples
 
-User types: `/bm rtfm ruby`
-
-Run: `cc-bookmark rtfm ruby`
+- `/bm rtfm ruby` → Run: `cc-bookmark rtfm ruby`
+- `/bm?` → Run: `cc-bookmark` (shows current bookmark)
+- `/bm ?` → Run: `cc-bookmark` (shows current bookmark)
