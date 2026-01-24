@@ -16,8 +16,10 @@ meaningful names and quickly resume them.
 
 - **Bookmark sessions** with `/bm tag1 tag2` inside Claude Code
 - **Resume sessions** with `cc tag` from anywhere
-- **List bookmarks** with `cc -l`
+- **Interactive list** with `cc -l` (arrow keys or j/k to navigate)
+- **Delete bookmarks** with `d` in list or `cc -d tag`
 - **Auto-install** the `/bm` command and permission on first run
+- **Zero dependencies** - pure Ruby
 
 ## Installation
 
@@ -51,17 +53,11 @@ using any of those tags.
 ### Resuming Sessions
 
 ```bash
-# Resume session tagged 'rtfm'
-cc rtfm
-
-# Continue session in current directory (or start new)
-cc
-
-# List all bookmarked sessions
-cc -l
-
-# Show help
-cc -h
+cc                     # Continue session in current dir, or start new
+cc <tag>               # Resume session bookmarked with <tag>
+cc -l, --list          # Interactive list (↑/↓/j/k, Enter, d=delete, q=quit)
+cc -d, --delete <tag>  # Delete bookmark matching <tag>
+cc -h, --help          # Show help
 ```
 
 ### First Run
@@ -92,6 +88,9 @@ claude
 
 # Later, from anywhere
 cc rtfm    # Instantly back in that session
+
+# Or browse all bookmarks
+cc -l      # Pick from interactive list
 ```
 
 ## Requirements

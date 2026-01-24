@@ -240,11 +240,11 @@ def show_help
     Easily bookmark and resume Claude Code sessions with tags.
 
     USAGE:
-      cc              Continue session in current directory, or start new
-      cc <tag>        Resume session bookmarked with <tag>
-      cc -l, --list   List all bookmarked sessions (interactive)
+      cc                     Continue session in current dir, or start new
+      cc <tag>               Resume session bookmarked with <tag>
+      cc -l, --list          Interactive list of bookmarked sessions
       cc -d, --delete <tag>  Delete bookmark matching <tag>
-      cc -h, --help   Show this help
+      cc -h, --help          Show this help
 
     BOOKMARKING (inside Claude Code):
       /bm tag1 tag2   Bookmark current session with one or more tags

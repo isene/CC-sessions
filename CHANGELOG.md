@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2025-01-23
+
+### Changed
+- Improved help text formatting
+- Updated README with new features
+
 ## [1.1.0] - 2025-01-23
 
 ### Added
