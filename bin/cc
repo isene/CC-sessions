@@ -8,6 +8,7 @@
 #   cc              - Continue session in current dir, or start new
 #   cc <tag>        - Resume session bookmarked with <tag>
 #   cc -l, --list   - List all bookmarked sessions
+#   cc -C, --current - Show currently running Claude Code sessions
 #   cc -h, --help   - Show help
 #
 # Bookmarking (in Claude Code):
@@ -19,6 +20,7 @@ require 'io/console'
 
 # Simple ANSI helpers
 def cyan(s)  = "\e[36m#{s}\e[0m"
+def green(s) = "\e[32m#{s}\e[0m"
 def dim(s)   = "\e[2m#{s}\e[0m"
 def red(s)   = "\e[31m#{s}\e[0m"
 def rev(s)   = "\e[7m#{s}\e[0m"
@@ -77,6 +79,44 @@ def load_bookmarks
   JSON.parse(File.read(BOOKMARKS_FILE))
 rescue JSON::ParserError
   {}
+end
+
+def find_tags_for_path(path, bookmarks)
+  bookmarks[path] || []
+end
+
+def show_current_sessions
+  # Find running claude processes (exclude grep itself and this script)
+  pids = `pgrep -x claude 2>/dev/null`.split.map(&:to_i)
+
+  if pids.empty?
+    puts "No Claude Code sessions currently running."
+    return
+  end
+
+  bookmarks = load_bookmarks
+
+  puts "Currently running Claude Code sessions:\n\n"
+
+  pids.each do |pid|
+    # Get working directory from /proc
+    cwd_link = "/proc/#{pid}/cwd"
+    next unless File.exist?(cwd_link)
+
+    begin
+      cwd = File.readlink(cwd_link)
+      tags = find_tags_for_path(cwd, bookmarks)
+      tag_str = tags.empty? ? dim('(no tags)') : green(tags.join(', '))
+
+      puts "  PID #{cyan(pid.to_s)}: #{cwd}"
+      puts "         Tags: #{tag_str}"
+      puts
+    rescue Errno::EACCES
+      # Can't read cwd for this process
+      puts "  PID #{cyan(pid.to_s)}: #{dim('(permission denied)')}"
+      puts
+    end
+  end
 end
 
 def find_session_by_tag(tag)
@@ -243,6 +283,7 @@ def show_help
       cc                     Continue session in current dir, or start new
       cc <tag>               Resume session bookmarked with <tag>
       cc -l, --list          Interactive list of bookmarked sessions
+      cc -C, --current       Show currently running Claude Code sessions
       cc -d, --delete <tag>  Delete bookmark matching <tag>
       cc -h, --help          Show this help
 
@@ -253,6 +294,7 @@ def show_help
       cc rtfm         Resume session tagged 'rtfm'
       cc              Continue in current dir or start fresh
       cc -l           Show interactive list (d to delete, Enter to select)
+      cc -C           Show running sessions with their tags
       cc -d rtfm      Delete bookmark tagged 'rtfm'
 
     FILES:
@@ -294,6 +336,8 @@ when '-h', '--help'
   show_help
 when '-l', '--list'
   list_bookmarks
+when '-C', '--current'
+  show_current_sessions
 when '-d', '--delete'
   if ARGV[1]
     delete_bookmark_by_tag(ARGV[1])

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.3] - 2025-02-04
+
+### Added
+- `cc -C` / `cc --current` to show currently running Claude Code sessions
+- Shows PID, working directory, and tags for each running session
+
 ## [1.1.2] - 2025-01-23
 
 ### Added
