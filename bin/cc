@@ -86,7 +86,7 @@ def find_tags_for_path(path, bookmarks)
 end
 
 def show_current_sessions
-  # Find running claude processes (exclude grep itself and this script)
+  # Find running claude processes
   pids = `pgrep -x claude 2>/dev/null`.split.map(&:to_i)
 
   if pids.empty?
@@ -96,10 +96,9 @@ def show_current_sessions
 
   bookmarks = load_bookmarks
 
-  puts "Currently running Claude Code sessions:\n\n"
+  puts "Running sessions:\n\n"
 
   pids.each do |pid|
-    # Get working directory from /proc
     cwd_link = "/proc/#{pid}/cwd"
     next unless File.exist?(cwd_link)
 
@@ -112,7 +111,6 @@ def show_current_sessions
       puts "         Tags: #{tag_str}"
       puts
     rescue Errno::EACCES
-      # Can't read cwd for this process
       puts "  PID #{cyan(pid.to_s)}: #{dim('(permission denied)')}"
       puts
     end
