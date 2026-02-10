@@ -9,6 +9,21 @@ require 'fileutils'
 
 CONFIG_DIR = File.expand_path('~/.cc-sessions')
 BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
+CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
+
+def resolve_session_dir(cwd)
+  # Find the original session directory by checking ~/.claude/projects/
+  # Claude encodes project paths as /foo/bar -> -foo-bar
+  path = cwd
+  loop do
+    encoded = path.gsub('/', '-')
+    return path if Dir.exist?(File.join(CLAUDE_PROJECTS, encoded))
+    parent = File.dirname(path)
+    break if parent == path
+    path = parent
+  end
+  cwd
+end
 
 FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
 
@@ -18,7 +33,7 @@ bookmarks = if File.exist?(BOOKMARKS_FILE)
               {}
             end
 
-cwd = Dir.pwd
+cwd = resolve_session_dir(Dir.pwd)
 tags = ARGV
 
 if tags.empty?

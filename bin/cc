@@ -81,6 +81,22 @@ rescue JSON::ParserError
   {}
 end
 
+CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
+
+def resolve_session_dir(cwd)
+  # Find the original session directory by checking ~/.claude/projects/
+  # Claude encodes project paths as /foo/bar -> -foo-bar
+  path = cwd
+  loop do
+    encoded = path.gsub('/', '-')
+    return path if Dir.exist?(File.join(CLAUDE_PROJECTS, encoded))
+    parent = File.dirname(path)
+    break if parent == path  # reached root
+    path = parent
+  end
+  cwd  # fallback to cwd if no project dir found
+end
+
 def find_tags_for_path(path, bookmarks)
   bookmarks[path] || []
 end
@@ -104,10 +120,11 @@ def show_current_sessions
 
     begin
       cwd = File.readlink(cwd_link)
-      tags = find_tags_for_path(cwd, bookmarks)
+      session_dir = resolve_session_dir(cwd)
+      tags = find_tags_for_path(session_dir, bookmarks)
       tag_str = tags.empty? ? dim('(no tags)') : green(tags.join(', '))
 
-      puts "  PID #{cyan(pid.to_s)}: #{cwd}"
+      puts "  PID #{cyan(pid.to_s)}: #{session_dir}"
       puts "         Tags: #{tag_str}"
       puts
     rescue Errno::EACCES
