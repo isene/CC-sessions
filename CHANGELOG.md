@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.4] - 2025-02-10
+
+### Fixed
+- Bookmark path resolution when claude changes directory during session
+- `cc -C` now resolves original session directory via ~/.claude/projects/
+
 ## [1.1.3] - 2025-02-04
 
 ### Added
