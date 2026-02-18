@@ -155,16 +155,18 @@ def read_key
   input = $stdin.getch
   if input == "\e"
     begin
-      input << $stdin.read_nonblock(3)
+      input << $stdin.read_nonblock(5)
     rescue IO::WaitReadable
     end
   end
   case input
-  when "\e[A", "k" then :up
-  when "\e[B", "j" then :down
-  when "\r", "\n"  then :enter
-  when "q", "\e"   then :quit
-  when "d"         then :delete
+  when "\e[A", "k"      then :up
+  when "\e[B", "j"      then :down
+  when "\e[1;2A", "K"   then :move_up
+  when "\e[1;2B", "J"   then :move_down
+  when "\r", "\n"       then :enter
+  when "q", "\e"        then :quit
+  when "d"              then :delete
   else nil
   end
 end
@@ -203,7 +205,7 @@ def list_bookmarks
   end
 
   index = 0
-  puts "Select session (↑/↓/j/k move, Enter select, d delete, q quit):\n\n"
+  puts "Select session (↑/↓/j/k move, J/K reorder, Enter select, d delete, q quit):\n\n"
 
   # Hide cursor
   print "\e[?25l"
@@ -234,6 +236,20 @@ def list_bookmarks
         index = (index - 1) % items.size
       when :down
         index = (index + 1) % items.size
+      when :move_up
+        if index > 0
+          items[index], items[index - 1] = items[index - 1], items[index]
+          index -= 1
+          bookmarks = items.each_with_object({}) { |item, h| h[item[:path]] = item[:tags] }
+          save_bookmarks(bookmarks)
+        end
+      when :move_down
+        if index < items.size - 1
+          items[index], items[index + 1] = items[index + 1], items[index]
+          index += 1
+          bookmarks = items.each_with_object({}) { |item, h| h[item[:path]] = item[:tags] }
+          save_bookmarks(bookmarks)
+        end
       when :delete
         # Show confirmation
         old_size = items.size
