@@ -32,12 +32,11 @@ COMMAND_SOURCE = File.expand_path('../commands/bm.md', __dir__)
 COMMAND_DEST = File.expand_path('~/.claude/commands/bm.md')
 SETTINGS_FILE = File.expand_path('~/.claude/settings.json')
 BM_PERMISSION = 'Bash(cc-bookmark:*)'
+CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
 
 def ensure_setup
-  # Create config directory
   FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
 
-  # Install /bm command if not present
   unless File.exist?(COMMAND_DEST)
     if File.exist?(COMMAND_SOURCE)
       FileUtils.mkdir_p(File.dirname(COMMAND_DEST))
@@ -48,7 +47,6 @@ def ensure_setup
     end
   end
 
-  # Add auto-accept permission for /bm command
   ensure_permission
 end
 
@@ -70,39 +68,233 @@ def ensure_permission
     puts
   end
 rescue JSON::ParserError
-  # If settings.json is malformed, skip permission setup
   warn "Warning: Could not parse ~/.claude/settings.json - skipping permission setup"
 end
 
-def load_bookmarks
-  return {} unless File.exist?(BOOKMARKS_FILE)
-  JSON.parse(File.read(BOOKMARKS_FILE))
-rescue JSON::ParserError
-  {}
-end
-
-CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
-
 def resolve_session_dir(cwd)
-  # Find the original session directory by checking ~/.claude/projects/
-  # Claude encodes project paths as /foo/bar -> -foo-bar
   path = cwd
   loop do
     encoded = path.gsub('/', '-')
     return path if Dir.exist?(File.join(CLAUDE_PROJECTS, encoded))
     parent = File.dirname(path)
-    break if parent == path  # reached root
+    break if parent == path
     path = parent
   end
-  cwd  # fallback to cwd if no project dir found
+  cwd
+end
+
+def detect_session_id(session_dir)
+  encoded = session_dir.gsub('/', '-')
+  project_dir = File.join(CLAUDE_PROJECTS, encoded)
+  return nil unless Dir.exist?(project_dir)
+
+  newest = Dir.glob(File.join(project_dir, '*.jsonl'))
+               .select { |f| File.file?(f) }
+               .max_by { |f| File.mtime(f) }
+  return nil unless newest
+
+  File.basename(newest, '.jsonl')
+end
+
+def load_bookmarks
+  unless File.exist?(BOOKMARKS_FILE)
+    return { 'version' => 2, 'sessions' => {} }
+  end
+
+  data = JSON.parse(File.read(BOOKMARKS_FILE))
+  if data['version']
+    data
+  else
+    migrate_bookmarks(data)
+  end
+rescue JSON::ParserError
+  { 'version' => 2, 'sessions' => {} }
+end
+
+def migrate_bookmarks(old_data)
+  sessions = {}
+  old_data.each do |path, tags|
+    sid = detect_session_id(path)
+    key = sid || "path:#{path}"
+    sessions[key] = { 'path' => path, 'tags' => tags }
+  end
+  new_data = { 'version' => 2, 'sessions' => sessions }
+  save_bookmarks(new_data)
+  new_data
+end
+
+def save_bookmarks(bookmarks)
+  FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
+  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+end
+
+def find_session_by_tag(tag)
+  bookmarks = load_bookmarks
+  bookmarks['sessions'].each do |id, entry|
+    if entry['tags'].include?(tag)
+      return { id: id, path: entry['path'] }
+    end
+  end
+  nil
 end
 
 def find_tags_for_path(path, bookmarks)
-  bookmarks[path] || []
+  bookmarks['sessions'].each_value do |entry|
+    return entry['tags'] if entry['path'] == path
+  end
+  []
+end
+
+def session_exists_in_dir?(dir)
+  claude_dir = File.join(dir, '.claude')
+  return false unless Dir.exist?(claude_dir)
+  Dir.glob(File.join(claude_dir, '**/*')).any? { |f| File.file?(f) }
+end
+
+def read_key
+  input = $stdin.getch
+  if input == "\e"
+    begin
+      input << $stdin.read_nonblock(5)
+    rescue IO::WaitReadable
+    end
+  end
+  case input
+  when "\e[A", "k"      then :up
+  when "\e[B", "j"      then :down
+  when "\e[1;2A", "K"   then :move_up
+  when "\e[1;2B", "J"   then :move_down
+  when "\r", "\n"       then :enter
+  when "q", "\e"        then :quit
+  when "d"              then :delete
+  else nil
+  end
+end
+
+def delete_bookmark_by_tag(tag)
+  bookmarks = load_bookmarks
+  match = find_session_by_tag(tag)
+
+  if match
+    bookmarks['sessions'].delete(match[:id])
+    save_bookmarks(bookmarks)
+    puts "Deleted bookmark: #{match[:path]}"
+    puts "  (was tagged: #{tag})"
+  else
+    puts "No session found with tag '#{tag}'"
+    exit 1
+  end
+end
+
+def list_bookmarks
+  bookmarks = load_bookmarks
+
+  if bookmarks['sessions'].empty?
+    puts "No bookmarked sessions."
+    puts
+    puts "To bookmark a session, use '/bm tag1 tag2' in Claude Code."
+    return
+  end
+
+  items = bookmarks['sessions'].map do |id, entry|
+    { id: id, path: entry['path'], tags: entry['tags'], exists: Dir.exist?(entry['path']) }
+  end
+
+  index = 0
+  puts "Select session (\u2191/\u2193/j/k move, J/K reorder, Enter select, d delete, q quit):\n\n"
+
+  print "\e[?25l"
+
+  begin
+    loop do
+      items.each_with_index do |item, i|
+        print clear_line
+        tag_str = cyan(item[:tags].join(', '))
+        path_str = dim(item[:path])
+        missing = item[:exists] ? '' : red(' [NOT FOUND]')
+        line = "#{tag_str} \u2192 #{path_str}#{missing}"
+
+        if i == index
+          puts "\u25b8 #{line}"
+        else
+          puts "  #{line}"
+        end
+      end
+
+      print "\e[#{items.size}A"
+
+      key = read_key
+      case key
+      when :up
+        index = (index - 1) % items.size
+      when :down
+        index = (index + 1) % items.size
+      when :move_up
+        if index > 0
+          items[index], items[index - 1] = items[index - 1], items[index]
+          index -= 1
+          rebuild_and_save(items)
+        end
+      when :move_down
+        if index < items.size - 1
+          items[index], items[index + 1] = items[index + 1], items[index]
+          index += 1
+          rebuild_and_save(items)
+        end
+      when :delete
+        old_size = items.size
+        print "\e[#{old_size}B"
+        print clear_line
+        print "Delete '#{items[index][:tags].join(', ')}'? (y/n) "
+        confirm = $stdin.getch
+        if confirm.downcase == 'y'
+          deleted = items.delete_at(index)
+          rebuild_and_save(items)
+          index = [index, items.size - 1].min
+          if items.empty?
+            print "\e[#{old_size}A"
+            (old_size + 1).times { print clear_line; puts }
+            print "\e[#{old_size + 1}A"
+            puts "All bookmarks deleted."
+            return
+          end
+          print clear_line
+          print "\e[#{old_size}A"
+          (old_size).times { print clear_line; puts }
+          print "\e[#{old_size}A"
+        else
+          print clear_line
+          print "\e[#{old_size}A"
+        end
+      when :enter
+        (items.size).times { print clear_line; puts }
+        print "\e[#{items.size}A"
+
+        if items[index][:exists]
+          print "\e[?25h"
+          resume_session(items[index][:id], items[index][:path])
+        else
+          puts red("Directory not found: #{items[index][:path]}")
+        end
+        return
+      when :quit
+        (items.size).times { print clear_line; puts }
+        print "\e[#{items.size}A"
+        return
+      end
+    end
+  ensure
+    print "\e[?25h"
+  end
+end
+
+def rebuild_and_save(items)
+  sessions = {}
+  items.each { |item| sessions[item[:id]] = { 'path' => item[:path], 'tags' => item[:tags] } }
+  save_bookmarks({ 'version' => 2, 'sessions' => sessions })
 end
 
 def show_current_sessions
-  # Find running claude processes
   pids = `pgrep -x claude 2>/dev/null`.split.map(&:to_i)
 
   if pids.empty?
@@ -131,176 +323,6 @@ def show_current_sessions
       puts "  PID #{cyan(pid.to_s)}: #{dim('(permission denied)')}"
       puts
     end
-  end
-end
-
-def find_session_by_tag(tag)
-  bookmarks = load_bookmarks
-  bookmarks.each do |path, tags|
-    return path if tags.include?(tag)
-  end
-  nil
-end
-
-def session_exists_in_dir?(dir)
-  # Check for .claude directory with session files
-  claude_dir = File.join(dir, '.claude')
-  return false unless Dir.exist?(claude_dir)
-
-  # Look for conversation files or other session indicators
-  Dir.glob(File.join(claude_dir, '**/*')).any? { |f| File.file?(f) }
-end
-
-def read_key
-  input = $stdin.getch
-  if input == "\e"
-    begin
-      input << $stdin.read_nonblock(5)
-    rescue IO::WaitReadable
-    end
-  end
-  case input
-  when "\e[A", "k"      then :up
-  when "\e[B", "j"      then :down
-  when "\e[1;2A", "K"   then :move_up
-  when "\e[1;2B", "J"   then :move_down
-  when "\r", "\n"       then :enter
-  when "q", "\e"        then :quit
-  when "d"              then :delete
-  else nil
-  end
-end
-
-def save_bookmarks(bookmarks)
-  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
-end
-
-def delete_bookmark_by_tag(tag)
-  bookmarks = load_bookmarks
-  path = find_session_by_tag(tag)
-
-  if path
-    bookmarks.delete(path)
-    save_bookmarks(bookmarks)
-    puts "Deleted bookmark: #{path}"
-    puts "  (was tagged: #{tag})"
-  else
-    puts "No session found with tag '#{tag}'"
-    exit 1
-  end
-end
-
-def list_bookmarks
-  bookmarks = load_bookmarks
-
-  if bookmarks.empty?
-    puts "No bookmarked sessions."
-    puts
-    puts "To bookmark a session, use '/bm tag1 tag2' in Claude Code."
-    return
-  end
-
-  items = bookmarks.map do |path, tags|
-    { path: path, tags: tags, exists: Dir.exist?(path) }
-  end
-
-  index = 0
-  puts "Select session (↑/↓/j/k move, J/K reorder, Enter select, d delete, q quit):\n\n"
-
-  # Hide cursor
-  print "\e[?25l"
-
-  begin
-    loop do
-      # Render list
-      items.each_with_index do |item, i|
-        print clear_line
-        tag_str = cyan(item[:tags].join(', '))
-        path_str = dim(item[:path])
-        missing = item[:exists] ? '' : red(' [NOT FOUND]')
-        line = "#{tag_str} → #{path_str}#{missing}"
-
-        if i == index
-          puts "▸ #{line}"
-        else
-          puts "  #{line}"
-        end
-      end
-
-      # Move cursor back to start
-      print "\e[#{items.size}A"
-
-      key = read_key
-      case key
-      when :up
-        index = (index - 1) % items.size
-      when :down
-        index = (index + 1) % items.size
-      when :move_up
-        if index > 0
-          items[index], items[index - 1] = items[index - 1], items[index]
-          index -= 1
-          bookmarks = items.each_with_object({}) { |item, h| h[item[:path]] = item[:tags] }
-          save_bookmarks(bookmarks)
-        end
-      when :move_down
-        if index < items.size - 1
-          items[index], items[index + 1] = items[index + 1], items[index]
-          index += 1
-          bookmarks = items.each_with_object({}) { |item, h| h[item[:path]] = item[:tags] }
-          save_bookmarks(bookmarks)
-        end
-      when :delete
-        # Show confirmation
-        old_size = items.size
-        print "\e[#{old_size}B"  # Move below list
-        print clear_line
-        print "Delete '#{items[index][:tags].join(', ')}'? (y/n) "
-        confirm = $stdin.getch
-        if confirm.downcase == 'y'
-          bookmarks.delete(items[index][:path])
-          save_bookmarks(bookmarks)
-          items.delete_at(index)
-          index = [index, items.size - 1].min
-          if items.empty?
-            # Clear list and confirmation line
-            print "\e[#{old_size}A"
-            (old_size + 1).times { print clear_line; puts }
-            print "\e[#{old_size + 1}A"
-            puts "All bookmarks deleted."
-            return
-          end
-          # Clear old list (one more line than new size)
-          print clear_line
-          print "\e[#{old_size}A"
-          (old_size).times { print clear_line; puts }
-          print "\e[#{old_size}A"
-        else
-          print clear_line
-          print "\e[#{old_size}A"
-        end
-      when :enter
-        # Clear the menu
-        (items.size).times { print clear_line; puts }
-        print "\e[#{items.size}A"
-
-        if items[index][:exists]
-          print "\e[?25h"  # Show cursor before exec
-          resume_session(items[index][:path])
-        else
-          puts red("Directory not found: #{items[index][:path]}")
-        end
-        return
-      when :quit
-        # Clear the menu
-        (items.size).times { print clear_line; puts }
-        print "\e[#{items.size}A"
-        return
-      end
-    end
-  ensure
-    # Always show cursor
-    print "\e[?25h"
   end
 end
 
@@ -338,20 +360,29 @@ def show_help
   HELP
 end
 
-def resume_session(path)
+def resume_session(session_id, path)
   unless Dir.exist?(path)
     puts "Error: Directory not found: #{path}"
     exit 1
   end
 
   Dir.chdir(path) do
+    # Emit OSC 7 so wezterm knows the new cwd (for Alt+n, etc.)
+    host = `hostname`.strip
+    print "\033]7;file://#{host}#{path}\007"
     puts "Resuming session in: #{path}"
-    # Use -c to continue most recent session in this directory (no picker)
-    exec('claude', '-c')
+    if session_id.start_with?('path:')
+      exec('claude', '-c')
+    else
+      exec('claude', '--resume', session_id)
+    end
   end
 end
 
 def continue_or_start
+  # Emit OSC 7 so wezterm knows the cwd
+  host = `hostname`.strip
+  print "\033]7;file://#{host}#{Dir.pwd}\007"
   if session_exists_in_dir?(Dir.pwd)
     exec('claude', '-c')
   else
@@ -381,19 +412,19 @@ when nil
   continue_or_start
 else
   tag = ARGV[0]
-  path = find_session_by_tag(tag)
+  match = find_session_by_tag(tag)
 
-  if path
-    resume_session(path)
+  if match
+    resume_session(match[:id], match[:path])
   else
     puts "No session found with tag '#{tag}'"
     puts
     puts "Available tags:"
     bookmarks = load_bookmarks
-    if bookmarks.empty?
+    if bookmarks['sessions'].empty?
       puts "  (none - use '/bm tag1 tag2' in Claude Code to bookmark)"
     else
-      all_tags = bookmarks.values.flatten.uniq.sort
+      all_tags = bookmarks['sessions'].values.flat_map { |e| e['tags'] }.uniq.sort
       all_tags.each { |t| puts "  #{t}" }
     end
     exit 1

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0] - 2026-02-19
+
+### Added
+- Session ID-based bookmarks (v2 format) for reliable session resume
+- Auto-migration from v1 path-based bookmarks to v2 session IDs
+- OSC 7 escape sequence on session resume for wezterm CWD tracking
+- Reorder bookmarks with J/K (Shift+j/k) in interactive list
+- `--resume <session_id>` used for direct session resume
+
+### Changed
+- Bookmarks now keyed by session UUID instead of directory path
+- `cc-bookmark` updated to detect and store session IDs
+- Fallback to `path:<dir>` key when session ID unavailable
+
 ## [1.1.4] - 2025-02-10
 
 ### Fixed

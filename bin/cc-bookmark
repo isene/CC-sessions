@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # CC-Bookmark - Helper script for /bm command
-# Bookmarks the current directory with tags
+# Bookmarks the current directory with tags, keyed by session ID
 
 require 'json'
 require 'fileutils'
@@ -12,8 +12,6 @@ BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
 CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
 
 def resolve_session_dir(cwd)
-  # Find the original session directory by checking ~/.claude/projects/
-  # Claude encodes project paths as /foo/bar -> -foo-bar
   path = cwd
   loop do
     encoded = path.gsub('/', '-')
@@ -25,26 +23,73 @@ def resolve_session_dir(cwd)
   cwd
 end
 
+def detect_session_id(session_dir)
+  encoded = session_dir.gsub('/', '-')
+  project_dir = File.join(CLAUDE_PROJECTS, encoded)
+  return nil unless Dir.exist?(project_dir)
+
+  newest = Dir.glob(File.join(project_dir, '*.jsonl'))
+               .select { |f| File.file?(f) }
+               .max_by { |f| File.mtime(f) }
+  return nil unless newest
+
+  File.basename(newest, '.jsonl')
+end
+
+def load_bookmarks
+  return { 'version' => 2, 'sessions' => {} } unless File.exist?(BOOKMARKS_FILE)
+
+  data = JSON.parse(File.read(BOOKMARKS_FILE))
+  if data['version']
+    data
+  else
+    migrate_bookmarks(data)
+  end
+rescue JSON::ParserError
+  { 'version' => 2, 'sessions' => {} }
+end
+
+def migrate_bookmarks(old_data)
+  sessions = {}
+  old_data.each do |path, tags|
+    # Try to find a real session ID for this path
+    sid = detect_session_id(path)
+    key = sid || "path:#{path}"
+    sessions[key] = { 'path' => path, 'tags' => tags }
+  end
+  new_data = { 'version' => 2, 'sessions' => sessions }
+  save_bookmarks(new_data)
+  new_data
+end
+
+def save_bookmarks(bookmarks)
+  FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
+  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+end
+
 FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
 
-bookmarks = if File.exist?(BOOKMARKS_FILE)
-              JSON.parse(File.read(BOOKMARKS_FILE))
-            else
-              {}
-            end
-
+bookmarks = load_bookmarks
 cwd = resolve_session_dir(Dir.pwd)
+session_id = detect_session_id(cwd)
 tags = ARGV
 
 if tags.empty?
-  if bookmarks[cwd]
-    puts "Current bookmark: #{bookmarks[cwd].join(', ')}"
+  # Query mode: show tags for current session
+  if session_id
+    entry = bookmarks['sessions'][session_id]
+    if entry
+      puts "Current bookmark: #{entry['tags'].join(', ')}"
+    else
+      puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
+    end
   else
-    puts "No bookmark for this directory. Usage: /bm tag1 tag2 ..."
+    puts "Could not detect session ID. Usage: /bm tag1 tag2 ..."
   end
 else
-  bookmarks[cwd] = tags
-  File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+  key = session_id || "path:#{cwd}"
+  bookmarks['sessions'][key] = { 'path' => cwd, 'tags' => tags }
+  save_bookmarks(bookmarks)
   puts "Bookmarked: #{cwd}"
   puts "Tags: #{tags.join(', ')}"
   puts ""
