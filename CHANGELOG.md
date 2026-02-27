@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-02-27
+
+### Added
+- Running session indicator (green `●`) in `cc -l` interactive list
+- Resume breadcrumbs to track session continuations across context resets
+- `CC_SESSION_ID` and `CC_RESUME_TAGS` env vars passed to resumed sessions
+- `exclude_id` support in session detection for sibling session discovery
+
+### Changed
+- `cc-bookmark` now checks env vars first for reliable session identification
+- `/bm?` auto-migrates bookmark to new session ID after context reset
+
 ## [1.2.0] - 2026-02-19
 
 ### Added

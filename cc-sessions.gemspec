@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name          = "cc-sessions"
-  spec.version       = "1.2.0"
+  spec.version       = "1.3.0"
   spec.authors       = ["Geir Isene"]
   spec.email         = ["g@isene.com"]
 
@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.description   = "A simple tool for bookmarking and resuming Claude Code sessions. " \
                        "Tag sessions with meaningful names using /bm inside Claude Code, " \
                        "then quickly resume them with 'cc <tag>' from anywhere. " \
-                       "UPDATE v1.2.0: Session ID-based bookmarks, auto-migration, OSC 7 for wezterm CWD tracking."
+                       "v1.3.0: Running session indicator, resume breadcrumbs, env-var session tracking."
   spec.homepage      = "https://github.com/isene/CC-sessions"
   spec.license       = "Unlicense"
 

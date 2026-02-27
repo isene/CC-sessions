@@ -17,6 +17,7 @@
 require 'json'
 require 'fileutils'
 require 'io/console'
+require 'set'
 
 # Simple ANSI helpers
 def cyan(s)  = "\e[36m#{s}\e[0m"
@@ -186,6 +187,20 @@ def delete_bookmark_by_tag(tag)
   end
 end
 
+def running_session_dirs
+  pids = `pgrep -x claude 2>/dev/null`.split.map(&:to_i)
+  dirs = Set.new
+  pids.each do |pid|
+    cwd_link = "/proc/#{pid}/cwd"
+    next unless File.exist?(cwd_link)
+    begin
+      dirs << resolve_session_dir(File.readlink(cwd_link))
+    rescue Errno::EACCES
+    end
+  end
+  dirs
+end
+
 def list_bookmarks
   bookmarks = load_bookmarks
 
@@ -196,8 +211,11 @@ def list_bookmarks
     return
   end
 
+  running = running_session_dirs
+
   items = bookmarks['sessions'].map do |id, entry|
-    { id: id, path: entry['path'], tags: entry['tags'], exists: Dir.exist?(entry['path']) }
+    { id: id, path: entry['path'], tags: entry['tags'], exists: Dir.exist?(entry['path']),
+      running: running.include?(entry['path']) }
   end
 
   index = 0
@@ -211,8 +229,14 @@ def list_bookmarks
         print clear_line
         tag_str = cyan(item[:tags].join(', '))
         path_str = dim(item[:path])
-        missing = item[:exists] ? '' : red(' [NOT FOUND]')
-        line = "#{tag_str} \u2192 #{path_str}#{missing}"
+        status = if !item[:exists]
+                   red(' [NOT FOUND]')
+                 elsif item[:running]
+                   green(' ●')
+                 else
+                   ''
+                 end
+        line = "#{tag_str} \u2192 #{path_str}#{status}"
 
         if i == index
           puts "\u25b8 #{line}"
@@ -366,11 +390,27 @@ def resume_session(session_id, path)
     exit 1
   end
 
+  # Save resume breadcrumb so cc-bookmark can track session continuations
+  # (when context resets, Claude creates a new session ID)
+  bookmarks = load_bookmarks
+  entry = bookmarks['sessions'][session_id]
+  if entry && !session_id.start_with?('path:')
+    resume_dir = File.join(CONFIG_DIR, 'resumed')
+    FileUtils.mkdir_p(resume_dir)
+    File.write(File.join(resume_dir, "#{session_id}.json"), entry['tags'].to_json)
+  end
+
   Dir.chdir(path) do
     # Emit OSC 7 so wezterm knows the new cwd (for Alt+n, etc.)
     host = `hostname`.strip
     print "\033]7;file://#{host}#{path}\007"
     puts "Resuming session in: #{path}"
+
+    # Export session info so cc-bookmark/hooks can reliably identify this session
+    ENV['CC_SESSION_ID'] = session_id
+    tags = entry ? entry['tags'].join(',') : ''
+    ENV['CC_RESUME_TAGS'] = tags unless tags.empty?
+
     if session_id.start_with?('path:')
       exec('claude', '-c')
     else

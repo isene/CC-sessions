@@ -10,6 +10,7 @@ require 'fileutils'
 CONFIG_DIR = File.expand_path('~/.cc-sessions')
 BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
 CLAUDE_PROJECTS = File.expand_path('~/.claude/projects')
+RESUME_DIR = File.join(CONFIG_DIR, 'resumed')
 
 def resolve_session_dir(cwd)
   path = cwd
@@ -23,17 +24,50 @@ def resolve_session_dir(cwd)
   cwd
 end
 
-def detect_session_id(session_dir)
+def detect_session_id(session_dir, exclude_id: nil)
   encoded = session_dir.gsub('/', '-')
   project_dir = File.join(CLAUDE_PROJECTS, encoded)
   return nil unless Dir.exist?(project_dir)
 
-  newest = Dir.glob(File.join(project_dir, '*.jsonl'))
-               .select { |f| File.file?(f) }
-               .max_by { |f| File.mtime(f) }
+  candidates = Dir.glob(File.join(project_dir, '*.jsonl'))
+                   .select { |f| File.file?(f) }
+  candidates.reject! { |f| File.basename(f, '.jsonl') == exclude_id } if exclude_id
+
+  newest = candidates.max_by { |f| File.mtime(f) }
   return nil unless newest
 
   File.basename(newest, '.jsonl')
+end
+
+# Find all session IDs in the same project directory
+def sibling_session_ids(session_dir)
+  encoded = session_dir.gsub('/', '-')
+  project_dir = File.join(CLAUDE_PROJECTS, encoded)
+  return [] unless Dir.exist?(project_dir)
+
+  Dir.glob(File.join(project_dir, '*.jsonl'))
+     .select { |f| File.file?(f) }
+     .map { |f| File.basename(f, '.jsonl') }
+end
+
+# Check resume breadcrumbs left by `cc` to find tags for a continued session.
+# When `cc <tag>` resumes a session that later gets a new ID (context reset),
+# the breadcrumb links the old session ID to its tags.
+def find_resume_breadcrumb(session_dir, current_id, bookmarks)
+  return nil unless Dir.exist?(RESUME_DIR)
+
+  siblings = sibling_session_ids(session_dir)
+  siblings.each do |sid|
+    next if sid == current_id
+    breadcrumb = File.join(RESUME_DIR, "#{sid}.json")
+    next unless File.exist?(breadcrumb)
+
+    tags = JSON.parse(File.read(breadcrumb))
+    return [sid, tags] if tags.is_a?(Array)
+  end
+  nil
+rescue
+  nil
 end
 
 def load_bookmarks
@@ -52,7 +86,6 @@ end
 def migrate_bookmarks(old_data)
   sessions = {}
   old_data.each do |path, tags|
-    # Try to find a real session ID for this path
     sid = detect_session_id(path)
     key = sid || "path:#{path}"
     sessions[key] = { 'path' => path, 'tags' => tags }
@@ -71,23 +104,74 @@ FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
 
 bookmarks = load_bookmarks
 cwd = resolve_session_dir(Dir.pwd)
-session_id = detect_session_id(cwd)
+original_id = ENV['CC_SESSION_ID']  # Set by `cc` wrapper — reliable
+session_id = detect_session_id(cwd) # Fallback — picks newest .jsonl
 tags = ARGV
 
 if tags.empty?
   # Query mode: show tags for current session
-  if session_id
+  # Priority: check the known original session ID first (from env var)
+  if original_id
+    entry = bookmarks['sessions'][original_id]
+    if entry
+      # Session ID hasn't changed, or bookmark is still on the original ID
+      puts "Current bookmark: #{entry['tags'].join(', ')}"
+    else
+      # Session ID changed (compaction/context reset).
+      # The bookmark is on the original ID but CC created a new session.
+      # Check if we have tags from env var or breadcrumb.
+      resume_tags = ENV['CC_RESUME_TAGS']&.split(',')
+      breadcrumb_file = File.join(RESUME_DIR, "#{original_id}.json")
+      if resume_tags.nil? && File.exist?(breadcrumb_file)
+        resume_tags = JSON.parse(File.read(breadcrumb_file)) rescue nil
+      end
+
+      if resume_tags
+        # Find the NEW session ID (newest .jsonl excluding the original)
+        new_id = detect_session_id(cwd, exclude_id: original_id)
+        if new_id
+          # Don't overwrite if the target session already has a bookmark
+          existing = bookmarks['sessions'][new_id]
+          if existing
+            puts "Current bookmark: #{existing['tags'].join(', ')}"
+          else
+            bookmarks['sessions'][new_id] = { 'path' => cwd, 'tags' => resume_tags }
+            save_bookmarks(bookmarks)
+            FileUtils.rm_f(breadcrumb_file)
+            puts "Current bookmark: #{resume_tags.join(', ')}"
+          end
+        else
+          puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
+        end
+      else
+        puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
+      end
+    end
+  elsif session_id
     entry = bookmarks['sessions'][session_id]
     if entry
       puts "Current bookmark: #{entry['tags'].join(', ')}"
     else
-      puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
+      # Fallback: check resume breadcrumbs (legacy behavior, no env var)
+      match = find_resume_breadcrumb(cwd, session_id, bookmarks)
+      if match
+        old_id, old_tags = match
+        bookmarks['sessions'].delete(old_id)
+        bookmarks['sessions'][session_id] = { 'path' => cwd, 'tags' => old_tags }
+        save_bookmarks(bookmarks)
+        FileUtils.rm_f(File.join(RESUME_DIR, "#{old_id}.json"))
+        puts "Current bookmark: #{old_tags.join(', ')}"
+      else
+        puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
+      end
     end
   else
     puts "Could not detect session ID. Usage: /bm tag1 tag2 ..."
   end
 else
-  key = session_id || "path:#{cwd}"
+  # Bookmark mode: set tags for current session
+  # Prefer env var session ID, then detected, then path-based
+  key = original_id || session_id || "path:#{cwd}"
   bookmarks['sessions'][key] = { 'path' => cwd, 'tags' => tags }
   save_bookmarks(bookmarks)
   puts "Bookmarked: #{cwd}"
