@@ -114,8 +114,17 @@ if tags.empty?
   if original_id
     entry = bookmarks['sessions'][original_id]
     if entry
-      # Session ID hasn't changed, or bookmark is still on the original ID
-      puts "Current bookmark: #{entry['tags'].join(', ')}"
+      # Check if session was continued (newer .jsonl exists)
+      if session_id && session_id != original_id
+        # Migrate bookmark to the new session ID
+        bookmarks['sessions'].delete(original_id)
+        bookmarks['sessions'][session_id] = entry
+        save_bookmarks(bookmarks)
+        FileUtils.rm_f(File.join(RESUME_DIR, "#{original_id}.json"))
+        puts "Bookmark migrated: #{entry['tags'].join(', ')}"
+      else
+        puts "Current bookmark: #{entry['tags'].join(', ')}"
+      end
     else
       # Session ID changed (compaction/context reset).
       # The bookmark is on the original ID but CC created a new session.

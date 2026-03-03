@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1] - 2026-03-03
+
+### Fixed
+- `cc-bookmark` query mode now proactively migrates bookmarks when a context continuation is detected (was only printing tags without migrating)
+- Hook now detects new session IDs by comparing newest `.jsonl` against a stamp, instead of only running once per `CC_SESSION_ID`
+
+### Changed
+- Hook outputs "Bookmark auto-migrated" when migration happens during a continuation
+- Migration prints "Bookmark migrated:" instead of "Current bookmark:" so the hook can distinguish migration from no-op
+
 ## [1.4.0] - 2026-03-03
 
 ### Fixed
