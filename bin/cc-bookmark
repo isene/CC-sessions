@@ -103,8 +103,16 @@ end
 FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
 
 bookmarks = load_bookmarks
-cwd = resolve_session_dir(Dir.pwd)
 original_id = ENV['CC_SESSION_ID']  # Set by `cc` wrapper — reliable
+
+# Use the bookmark's stored path (not Dir.pwd) when CC_SESSION_ID is set,
+# because bash cwd can drift to other directories during the session.
+if original_id
+  orig_entry = bookmarks['sessions'][original_id]
+  cwd = resolve_session_dir(orig_entry['path']) if orig_entry
+end
+cwd ||= resolve_session_dir(Dir.pwd)
+
 session_id = detect_session_id(cwd) # Fallback — picks newest .jsonl
 tags = ARGV
 

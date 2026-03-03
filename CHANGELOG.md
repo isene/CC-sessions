@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2026-03-03
+
+### Fixed
+- `cc-bookmark` now uses the bookmark's stored path (not bash cwd) for session detection when `CC_SESSION_ID` is set — prevents migration to wrong project when cwd drifts during a session
+
 ## [1.4.1] - 2026-03-03
 
 ### Fixed
