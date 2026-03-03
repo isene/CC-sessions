@@ -39,33 +39,16 @@ def detect_session_id(session_dir, exclude_id: nil)
   File.basename(newest, '.jsonl')
 end
 
-# Find all session IDs in the same project directory
-def sibling_session_ids(session_dir)
-  encoded = session_dir.gsub('/', '-')
-  project_dir = File.join(CLAUDE_PROJECTS, encoded)
-  return [] unless Dir.exist?(project_dir)
+# Find resume breadcrumb for a specific session ID only.
+# Only matches exact session IDs — never scans siblings by path.
+def find_resume_breadcrumb(session_id)
+  return nil unless session_id && Dir.exist?(RESUME_DIR)
 
-  Dir.glob(File.join(project_dir, '*.jsonl'))
-     .select { |f| File.file?(f) }
-     .map { |f| File.basename(f, '.jsonl') }
-end
+  breadcrumb = File.join(RESUME_DIR, "#{session_id}.json")
+  return nil unless File.exist?(breadcrumb)
 
-# Check resume breadcrumbs left by `cc` to find tags for a continued session.
-# When `cc <tag>` resumes a session that later gets a new ID (context reset),
-# the breadcrumb links the old session ID to its tags.
-def find_resume_breadcrumb(session_dir, current_id, bookmarks)
-  return nil unless Dir.exist?(RESUME_DIR)
-
-  siblings = sibling_session_ids(session_dir)
-  siblings.each do |sid|
-    next if sid == current_id
-    breadcrumb = File.join(RESUME_DIR, "#{sid}.json")
-    next unless File.exist?(breadcrumb)
-
-    tags = JSON.parse(File.read(breadcrumb))
-    return [sid, tags] if tags.is_a?(Array)
-  end
-  nil
+  tags = JSON.parse(File.read(breadcrumb))
+  tags.is_a?(Array) ? tags : nil
 rescue
   nil
 end
@@ -169,18 +152,7 @@ if tags.empty?
     if entry
       puts "Current bookmark: #{entry['tags'].join(', ')}"
     else
-      # Fallback: check resume breadcrumbs (legacy behavior, no env var)
-      match = find_resume_breadcrumb(cwd, session_id, bookmarks)
-      if match
-        old_id, old_tags = match
-        bookmarks['sessions'].delete(old_id)
-        bookmarks['sessions'][session_id] = { 'path' => cwd, 'tags' => old_tags }
-        save_bookmarks(bookmarks)
-        FileUtils.rm_f(File.join(RESUME_DIR, "#{old_id}.json"))
-        puts "Current bookmark: #{old_tags.join(', ')}"
-      else
-        puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
-      end
+      puts "No bookmark for this session. Usage: /bm tag1 tag2 ..."
     end
   else
     puts "Could not detect session ID. Usage: /bm tag1 tag2 ..."

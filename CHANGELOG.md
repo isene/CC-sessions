@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0] - 2026-03-03
+
+### Fixed
+- Sessions no longer inherit bookmarks from unrelated sessions in the same directory
+- Removed path-based sibling matching in `find_resume_breadcrumb` — now only matches exact session IDs
+- Removed `find_tags_for_path` from `cc` — running session tags now resolved by session ID, not directory path
+- Running indicator (green dot) in `cc -l` now matches by session ID instead of path
+
+### Changed
+- `find_resume_breadcrumb` takes a session ID only, not a directory — eliminates cross-contamination
+- `cc -C` uses session-ID-based tag lookup instead of path matching
+
 ## [1.4.2] - 2026-03-03
 
 ### Fixed

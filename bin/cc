@@ -139,11 +139,12 @@ def find_session_by_tag(tag)
   nil
 end
 
-def find_tags_for_path(path, bookmarks)
-  bookmarks['sessions'].each_value do |entry|
-    return entry['tags'] if entry['path'] == path
-  end
-  []
+def find_tags_for_session_dir(session_dir, bookmarks)
+  session_id = detect_session_id(session_dir)
+  return [] unless session_id
+
+  entry = bookmarks['sessions'][session_id]
+  entry ? entry['tags'] : []
 end
 
 def session_exists_in_dir?(dir)
@@ -187,18 +188,20 @@ def delete_bookmark_by_tag(tag)
   end
 end
 
-def running_session_dirs
+def running_session_ids
   pids = `pgrep -x claude 2>/dev/null`.split.map(&:to_i)
-  dirs = Set.new
+  ids = Set.new
   pids.each do |pid|
     cwd_link = "/proc/#{pid}/cwd"
     next unless File.exist?(cwd_link)
     begin
-      dirs << resolve_session_dir(File.readlink(cwd_link))
+      session_dir = resolve_session_dir(File.readlink(cwd_link))
+      sid = detect_session_id(session_dir)
+      ids << sid if sid
     rescue Errno::EACCES
     end
   end
-  dirs
+  ids
 end
 
 def list_bookmarks
@@ -211,11 +214,11 @@ def list_bookmarks
     return
   end
 
-  running = running_session_dirs
+  running = running_session_ids
 
   items = bookmarks['sessions'].map do |id, entry|
     { id: id, path: entry['path'], tags: entry['tags'], exists: Dir.exist?(entry['path']),
-      running: running.include?(entry['path']) }
+      running: running.include?(id) }
   end
 
   index = 0
@@ -337,7 +340,7 @@ def show_current_sessions
     begin
       cwd = File.readlink(cwd_link)
       session_dir = resolve_session_dir(cwd)
-      tags = find_tags_for_path(session_dir, bookmarks)
+      tags = find_tags_for_session_dir(session_dir, bookmarks)
       tag_str = tags.empty? ? dim('(no tags)') : green(tags.join(', '))
 
       puts "  PID #{cyan(pid.to_s)}: #{session_dir}"
