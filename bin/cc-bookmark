@@ -170,8 +170,16 @@ if tags.empty?
   end
 else
   # Bookmark mode: set tags for current session
-  # Prefer env var session ID, then detected, then path-based
-  key = original_id || session_id || "path:#{cwd}"
+  # Prefer detected (newest) session ID over env var — the env var may be stale
+  # after a context continuation where Claude created a new session ID
+  key = session_id || original_id || "path:#{cwd}"
+
+  # Clean up old bookmark if session ID changed (migration)
+  if original_id && original_id != key && bookmarks['sessions'][original_id]
+    bookmarks['sessions'].delete(original_id)
+    FileUtils.rm_f(File.join(RESUME_DIR, "#{original_id}.json"))
+  end
+
   bookmarks['sessions'][key] = { 'path' => cwd, 'tags' => tags }
   save_bookmarks(bookmarks)
   puts "Bookmarked: #{cwd}"

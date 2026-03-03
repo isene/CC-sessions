@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0] - 2026-03-03
+
+### Fixed
+- Resuming a session that had a context continuation now auto-follows to the latest session ID instead of jumping back to the old one
+- Re-bookmarking (`/bm`) in a continued session now uses the detected (newest) session ID instead of the stale env var
+
+### Changed
+- `resume_session` detects newer `.jsonl` files and auto-migrates the bookmark before resuming
+- `cc-bookmark` prefers detected session ID over `CC_SESSION_ID` env var in bookmark mode
+- Old bookmarks and breadcrumbs cleaned up automatically during migration
+
 ## [1.3.0] - 2026-02-27
 
 ### Added

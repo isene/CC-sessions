@@ -19,6 +19,7 @@ meaningful names and quickly resume them.
 - **Resume sessions** with `cc tag` from anywhere
 - **Interactive list** with `cc -l` (arrow keys or j/k to navigate)
 - **Running indicator** shows green `●` next to active sessions in `cc -l`
+- **Auto-follow continuations** — when Claude creates a new session (context reset), `cc` detects it and resumes the latest session automatically
 - **Delete bookmarks** with `d` in list or `cc -d tag`
 - **Auto-install** the `/bm` command and permission on first run
 - **Zero dependencies** - pure Ruby

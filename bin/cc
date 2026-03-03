@@ -390,10 +390,26 @@ def resume_session(session_id, path)
     exit 1
   end
 
-  # Save resume breadcrumb so cc-bookmark can track session continuations
-  # (when context resets, Claude creates a new session ID)
   bookmarks = load_bookmarks
   entry = bookmarks['sessions'][session_id]
+
+  # Auto-migrate: if a newer session exists (context continuation), use it
+  unless session_id.start_with?('path:')
+    session_dir = resolve_session_dir(path)
+    newest_id = detect_session_id(session_dir)
+    if newest_id && newest_id != session_id && entry
+      puts dim("Session was continued — following to latest.")
+      bookmarks['sessions'].delete(session_id)
+      bookmarks['sessions'][newest_id] = entry
+      save_bookmarks(bookmarks)
+      # Clean up old breadcrumb if any
+      FileUtils.rm_f(File.join(CONFIG_DIR, 'resumed', "#{session_id}.json"))
+      session_id = newest_id
+    end
+  end
+
+  # Save resume breadcrumb so cc-bookmark can track session continuations
+  # (when context resets, Claude creates a new session ID)
   if entry && !session_id.start_with?('path:')
     resume_dir = File.join(CONFIG_DIR, 'resumed')
     FileUtils.mkdir_p(resume_dir)
