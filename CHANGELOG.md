@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.1] - 2026-03-04
+
+### Fixed
+- Multiple sessions sharing a project dir no longer steal each other's bookmarks
+- `detect_session_id` (newest `.jsonl`) no longer overrides `CC_SESSION_ID` when the original session file exists
+- Query mode migration only triggers on true context continuation (original `.jsonl` gone), not when another session is simply newer
+- Reserved words ("query", "?", "status", "show") now trigger query mode instead of being saved as tag names
+
+### Added
+- `session_file_exists?` helper to distinguish "context continuation" from "another active session"
+
 ## [1.5.0] - 2026-03-03
 
 ### Fixed

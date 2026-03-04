@@ -39,6 +39,13 @@ def detect_session_id(session_dir, exclude_id: nil)
   File.basename(newest, '.jsonl')
 end
 
+# Check if a session's .jsonl file still exists in the project dir
+def session_file_exists?(session_id, session_dir)
+  return false unless session_id
+  encoded = session_dir.gsub('/', '-')
+  File.exist?(File.join(CLAUDE_PROJECTS, encoded, "#{session_id}.jsonl"))
+end
+
 # Find resume breadcrumb for a specific session ID only.
 # Only matches exact session IDs — never scans siblings by path.
 def find_resume_breadcrumb(session_id)
@@ -99,15 +106,23 @@ cwd ||= resolve_session_dir(Dir.pwd)
 session_id = detect_session_id(cwd) # Fallback — picks newest .jsonl
 tags = ARGV
 
+# Treat reserved words as query mode, not tag names
+QUERY_WORDS = %w[? query status show].freeze
+if tags.length == 1 && QUERY_WORDS.include?(tags.first.downcase)
+  tags = []  # Convert to query mode
+end
+
 if tags.empty?
   # Query mode: show tags for current session
   # Priority: check the known original session ID first (from env var)
   if original_id
     entry = bookmarks['sessions'][original_id]
     if entry
-      # Check if session was continued (newer .jsonl exists)
-      if session_id && session_id != original_id
-        # Migrate bookmark to the new session ID
+      # Check if session was continued: original .jsonl is GONE and a newer one exists.
+      # If original .jsonl still exists, another session is just more recent — NOT a continuation.
+      original_gone = !session_file_exists?(original_id, cwd)
+      if original_gone && session_id && session_id != original_id
+        # True context continuation — migrate bookmark to the new session ID
         bookmarks['sessions'].delete(original_id)
         bookmarks['sessions'][session_id] = entry
         save_bookmarks(bookmarks)
@@ -159,11 +174,18 @@ if tags.empty?
   end
 else
   # Bookmark mode: set tags for current session
-  # Prefer detected (newest) session ID over env var — the env var may be stale
-  # after a context continuation where Claude created a new session ID
-  key = session_id || original_id || "path:#{cwd}"
+  # Use CC_SESSION_ID when its .jsonl still exists (it's the real session).
+  # Only fall back to detect_session_id when the original is gone (context continuation).
+  if original_id && session_file_exists?(original_id, cwd)
+    key = original_id
+  elsif original_id && session_id && session_id != original_id
+    # Context continuation — original .jsonl gone, use the new one
+    key = session_id
+  else
+    key = session_id || original_id || "path:#{cwd}"
+  end
 
-  # Clean up old bookmark if session ID changed (migration)
+  # Clean up old bookmark if session ID changed (true migration)
   if original_id && original_id != key && bookmarks['sessions'][original_id]
     bookmarks['sessions'].delete(original_id)
     FileUtils.rm_f(File.join(RESUME_DIR, "#{original_id}.json"))
