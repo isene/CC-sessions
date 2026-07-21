@@ -3,6 +3,8 @@
 ## [1.5.2] - 2026-07-21
 
 ### Fixed
+- Project dir encoding now matches Claude Code: all non-alphanumerics become `-`, not just `/`. Paths with dots (e.g. `NetHack-5.0`) previously missed their project dir, walked up to a parent, and resumed an unrelated session
+- Resume auto-migrate only follows a newer session when the bookmarked session's transcript is gone, instead of unconditionally chasing the newest `.jsonl` in the dir
 - Session detection now uses `CLAUDE_CODE_SESSION_ID` (exported by Claude Code 2.1+) instead of guessing from shell cwd and newest `.jsonl`. Fixes bookmarks landing on the wrong session or a `path:` fallback when the shell cwd drifts, or when the session was launched from a different directory than the work happens in
 - Bookmark path is read from the session transcript's first `cwd` entry (the launch dir), so `cc <tag>` resumes from the directory that actually owns the transcript
 

@@ -86,7 +86,7 @@ end
 def resolve_session_dir(cwd)
   path = cwd
   loop do
-    encoded = path.gsub('/', '-')
+    encoded = path.gsub(/[^A-Za-z0-9]/, '-')
     return path if Dir.exist?(File.join(CLAUDE_PROJECTS, encoded))
     parent = File.dirname(path)
     break if parent == path
@@ -96,7 +96,7 @@ def resolve_session_dir(cwd)
 end
 
 def detect_session_id(session_dir)
-  encoded = session_dir.gsub('/', '-')
+  encoded = session_dir.gsub(/[^A-Za-z0-9]/, '-')
   project_dir = File.join(CLAUDE_PROJECTS, encoded)
   return nil unless Dir.exist?(project_dir)
 
@@ -408,11 +408,14 @@ def resume_session(session_id, path)
   bookmarks = load_bookmarks
   entry = bookmarks['sessions'][session_id]
 
-  # Auto-migrate: if a newer session exists (context continuation), use it
+  # Auto-migrate: if the bookmarked session's transcript is gone and a newer
+  # one exists (context continuation), follow it. If the transcript still
+  # exists, resume it directly — another session being newer is irrelevant.
   unless session_id.start_with?('path:')
     session_dir = resolve_session_dir(path)
     newest_id = detect_session_id(session_dir)
-    if newest_id && newest_id != session_id && entry
+    original_gone = Dir.glob(File.join(CLAUDE_PROJECTS, '*', "#{session_id}.jsonl")).empty?
+    if original_gone && newest_id && newest_id != session_id && entry
       puts dim("Session was continued — following to latest.")
       bookmarks['sessions'].delete(session_id)
       bookmarks['sessions'][newest_id] = entry

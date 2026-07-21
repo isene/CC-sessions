@@ -15,7 +15,7 @@ RESUME_DIR = File.join(CONFIG_DIR, 'resumed')
 def resolve_session_dir(cwd)
   path = cwd
   loop do
-    encoded = path.gsub('/', '-')
+    encoded = path.gsub(/[^A-Za-z0-9]/, '-')
     return path if Dir.exist?(File.join(CLAUDE_PROJECTS, encoded))
     parent = File.dirname(path)
     break if parent == path
@@ -25,7 +25,7 @@ def resolve_session_dir(cwd)
 end
 
 def detect_session_id(session_dir, exclude_id: nil)
-  encoded = session_dir.gsub('/', '-')
+  encoded = session_dir.gsub(/[^A-Za-z0-9]/, '-')
   project_dir = File.join(CLAUDE_PROJECTS, encoded)
   return nil unless Dir.exist?(project_dir)
 
@@ -55,7 +55,7 @@ end
 # Check if a session's .jsonl file still exists in the project dir
 def session_file_exists?(session_id, session_dir)
   return false unless session_id
-  encoded = session_dir.gsub('/', '-')
+  encoded = session_dir.gsub(/[^A-Za-z0-9]/, '-')
   File.exist?(File.join(CLAUDE_PROJECTS, encoded, "#{session_id}.jsonl"))
 end
 
