@@ -39,6 +39,19 @@ def detect_session_id(session_dir, exclude_id: nil)
   File.basename(newest, '.jsonl')
 end
 
+# The directory a session was launched from — its transcript lives under
+# that directory's encoded name in ~/.claude/projects. Read it from the
+# transcript's first cwd entry rather than guessing from the shell cwd.
+def session_launch_dir(session_id)
+  jsonl = Dir.glob(File.join(CLAUDE_PROJECTS, '*', "#{session_id}.jsonl")).first
+  return nil unless jsonl
+  File.foreach(jsonl) do |line|
+    cwd = JSON.parse(line)['cwd'] rescue nil
+    return cwd if cwd
+  end
+  nil
+end
+
 # Check if a session's .jsonl file still exists in the project dir
 def session_file_exists?(session_id, session_dir)
   return false unless session_id
@@ -88,6 +101,18 @@ end
 def save_bookmarks(bookmarks)
   FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
   File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+  fix_ownership(BOOKMARKS_FILE)
+end
+
+# When running under sudo, ensure files stay owned by geir
+def fix_ownership(path)
+  return unless Process.uid == 0 || ENV['SUDO_USER']
+  target_user = ENV['SUDO_USER'] || 'geir'
+  require 'etc'
+  pw = Etc.getpwnam(target_user)
+  File.chown(pw.uid, pw.gid, path)
+rescue
+  nil
 end
 
 FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
@@ -104,6 +129,23 @@ end
 cwd ||= resolve_session_dir(Dir.pwd)
 
 session_id = detect_session_id(cwd) # Fallback — picks newest .jsonl
+
+# Claude Code 2.1+ exports the running session's ID directly — authoritative,
+# immune to shell cwd drift and to sessions launched from a sibling directory.
+current_id = ENV['CLAUDE_CODE_SESSION_ID']
+if current_id
+  launch = session_launch_dir(current_id)
+  cwd = launch if launch
+  session_id = current_id
+  # Context continuation while running under `cc`: migrate the old entry
+  if original_id && original_id != current_id && (old = bookmarks['sessions'].delete(original_id))
+    bookmarks['sessions'][current_id] ||= old
+    save_bookmarks(bookmarks)
+    FileUtils.rm_f(File.join(RESUME_DIR, "#{original_id}.json"))
+  end
+  original_id = current_id
+end
+
 tags = ARGV
 
 # Treat reserved words as query mode, not tag names

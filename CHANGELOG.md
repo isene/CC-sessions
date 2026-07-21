@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.2] - 2026-07-21
+
+### Fixed
+- Session detection now uses `CLAUDE_CODE_SESSION_ID` (exported by Claude Code 2.1+) instead of guessing from shell cwd and newest `.jsonl`. Fixes bookmarks landing on the wrong session or a `path:` fallback when the shell cwd drifts, or when the session was launched from a different directory than the work happens in
+- Bookmark path is read from the session transcript's first `cwd` entry (the launch dir), so `cc <tag>` resumes from the directory that actually owns the transcript
+
+### Added
+- `session_launch_dir` helper: locates a session's transcript across all project dirs and extracts its launch directory
+
 ## [1.5.1] - 2026-03-04
 
 ### Fixed
