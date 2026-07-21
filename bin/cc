@@ -27,6 +27,17 @@ def red(s)   = "\e[31m#{s}\e[0m"
 def rev(s)   = "\e[7m#{s}\e[0m"
 def clear_line = "\e[2K\r"
 
+# When running under sudo, ensure files stay owned by the real user
+def fix_ownership(*paths)
+  return unless Process.uid == 0 || ENV['SUDO_USER']
+  target_user = ENV['SUDO_USER'] || 'geir'
+  require 'etc'
+  pw = Etc.getpwnam(target_user)
+  paths.each { |p| File.chown(pw.uid, pw.gid, p) }
+rescue
+  nil
+end
+
 CONFIG_DIR = File.expand_path('~/.cc-sessions')
 BOOKMARKS_FILE = File.join(CONFIG_DIR, 'bookmarks.json')
 COMMAND_SOURCE = File.expand_path('../commands/bm.md', __dir__)
@@ -127,6 +138,7 @@ end
 def save_bookmarks(bookmarks)
   FileUtils.mkdir_p(CONFIG_DIR) unless Dir.exist?(CONFIG_DIR)
   File.write(BOOKMARKS_FILE, JSON.pretty_generate(bookmarks))
+  fix_ownership(BOOKMARKS_FILE)
 end
 
 def find_session_by_tag(tag)
@@ -416,7 +428,9 @@ def resume_session(session_id, path)
   if entry && !session_id.start_with?('path:')
     resume_dir = File.join(CONFIG_DIR, 'resumed')
     FileUtils.mkdir_p(resume_dir)
-    File.write(File.join(resume_dir, "#{session_id}.json"), entry['tags'].to_json)
+    breadcrumb = File.join(resume_dir, "#{session_id}.json")
+    File.write(breadcrumb, entry['tags'].to_json)
+    fix_ownership(breadcrumb)
   end
 
   Dir.chdir(path) do
