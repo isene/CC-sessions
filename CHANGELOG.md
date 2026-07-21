@@ -8,6 +8,7 @@
 
 ### Added
 - `session_launch_dir` helper: locates a session's transcript across all project dirs and extracts its launch directory
+- `bin/cl`: shorthand for `cc -l` (interactive bookmark list)
 
 ## [1.5.1] - 2026-03-04
 

@@ -1,0 +1,3 @@
+#!/bin/sh
+# cl - shorthand for `cc -l` (interactive bookmark list)
+exec "$(dirname "$(readlink -f "$0")")/cc" -l "$@"
