@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: linux-aarch64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            suffix: macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            suffix: macos-aarch64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          for bin in cc cl cc-bookmark; do
+            cp target/${{ matrix.target }}/release/$bin $bin-${{ matrix.suffix }}
+            chmod +x $bin-${{ matrix.suffix }}
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.suffix }}
+          path: |
+            cc-${{ matrix.suffix }}
+            cl-${{ matrix.suffix }}
+            cc-bookmark-${{ matrix.suffix }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            Download the three binaries for your platform and put them in
+            your PATH as `cc`, `cl` and `cc-bookmark`:
+            ```bash
+            for b in cc cl cc-bookmark; do
+              curl -L "https://github.com/isene/CC-sessions/releases/latest/download/$b-linux-x86_64" -o ~/bin/$b
+              chmod +x ~/bin/$b
+            done
+            ```
+
+            ## Platforms
+            - `*-linux-x86_64` - Linux (Intel/AMD 64-bit)
+            - `*-linux-aarch64` - Linux (ARM 64-bit)
+            - `*-macos-x86_64` - macOS (Intel)
+            - `*-macos-aarch64` - macOS (Apple Silicon)

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0] - 2026-07-22
+
+### Changed
+- Full Rust port: cc, cl and cc-bookmark are now single static binaries
+  (was Ruby). Same commands, files and behavior; existing bookmarks
+  carry over untouched. Joins the Fe2O3 suite.
+- Process discovery reads /proc directly (no pgrep forks)
+- Terminal input uses termios VMIN/VTIME only — the O_NONBLOCK leak
+  class of bug (v1.5.x, killed the parent shell via EAGAIN-as-EOF)
+  is structurally impossible now
+- New themed logo (img/cc-sessions.svg) in the Fe2O3 style
+
+
 ## [1.5.2] - 2026-07-21
 
 ### Fixed

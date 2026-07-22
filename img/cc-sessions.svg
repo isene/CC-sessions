@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0a0a14"/>
+    </linearGradient>
+    <linearGradient id="rust" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f74c00"/>
+      <stop offset="100%" style="stop-color:#b7410e"/>
+    </linearGradient>
+    <linearGradient id="row" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2c2540"/>
+      <stop offset="100%" style="stop-color:#1b1730"/>
+    </linearGradient>
+  </defs>
+  <style>
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    @keyframes sway  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+    .runner { animation: pulse 2s ease-in-out infinite; }
+    .ribbon { animation: sway 3s ease-in-out infinite; }
+  </style>
+
+  <!-- Background -->
+  <rect width="256" height="256" rx="28" fill="url(#bg)"/>
+
+  <!-- Three bookmarked sessions -->
+  <g>
+    <!-- session row 1 -->
+    <rect x="36" y="52" width="184" height="38" rx="8" fill="url(#row)"/>
+    <text x="50" y="78" font-family="monospace" font-size="22" fill="#6f6a8a">&#10095;</text>
+    <rect x="74" y="66" width="70" height="10" rx="5" fill="#4a4468"/>
+    <circle class="runner" cx="202" cy="71" r="6" fill="#3fae56"/>
+
+    <!-- session row 2 — the bookmarked one -->
+    <rect x="36" y="108" width="184" height="38" rx="8" fill="url(#row)"
+          stroke="url(#rust)" stroke-width="2.5"/>
+    <text x="50" y="134" font-family="monospace" font-size="22" fill="#f74c00">&#10095;</text>
+    <rect x="74" y="122" width="96" height="10" rx="5" fill="#8d84b0"/>
+
+    <!-- session row 3 -->
+    <rect x="36" y="164" width="184" height="38" rx="8" fill="url(#row)"/>
+    <text x="50" y="190" font-family="monospace" font-size="22" fill="#6f6a8a">&#10095;</text>
+    <rect x="74" y="178" width="54" height="10" rx="5" fill="#4a4468"/>
+  </g>
+
+  <!-- Bookmark ribbon marking the chosen session -->
+  <g class="ribbon">
+    <path d="M186 96 h26 v46 l-13 -10 -13 10 z" fill="url(#rust)"/>
+    <path d="M186 96 h26 v6 h-26 z" fill="#ffffff" opacity="0.18"/>
+  </g>
+</svg>
