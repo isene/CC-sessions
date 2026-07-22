@@ -168,13 +168,15 @@ end
 def read_key
   input = $stdin.getch
   if input == "\e"
-    # Collect any escape-sequence tail with select+sysread. NOT
-    # read_nonblock: that sets O_NONBLOCK on the tty's shared open-file
-    # description and leaves it set, so after this script exits the
-    # parent shell's blocking read returns EAGAIN — bare treats that as
-    # EOF and exits, taking the terminal window with it.
-    while IO.select([$stdin], nil, nil, 0.02) && input.length < 8
-      input << $stdin.sysread(1)
+    # Collect any escape-sequence tail with getch(min:0, time:) — raw
+    # termios VMIN/VTIME, so no fd flags are touched. NOT read_nonblock:
+    # that sets O_NONBLOCK on the tty's shared open-file description and
+    # leaves it set, so after this script exits the parent shell's
+    # blocking read returns EAGAIN — bare treated that as EOF and exited,
+    # taking the terminal window with it. And NOT select+sysread: sysread
+    # raises "sysread for buffered IO" after getch's buffered reads.
+    while input.length < 8 && (ch = $stdin.getch(min: 0, time: 0.02))
+      input << ch
     end
   end
   case input
