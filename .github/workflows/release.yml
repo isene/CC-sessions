@@ -56,6 +56,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package
+        working-directory: CC-sessions
         run: |
           for bin in cc cl cc-bookmark; do
             cp target/${{ matrix.target }}/release/$bin $bin-${{ matrix.suffix }}
@@ -67,9 +68,9 @@ jobs:
         with:
           name: binaries-${{ matrix.suffix }}
           path: |
-            cc-${{ matrix.suffix }}
-            cl-${{ matrix.suffix }}
-            cc-bookmark-${{ matrix.suffix }}
+            CC-sessions/cc-${{ matrix.suffix }}
+            CC-sessions/cl-${{ matrix.suffix }}
+            CC-sessions/cc-bookmark-${{ matrix.suffix }}
 
   release:
     name: Create Release
