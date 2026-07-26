@@ -14,6 +14,9 @@
 //!   (leaked by the old Ruby read_nonblock) once killed the parent
 //!   shell and its terminal window.
 
+use crust::seq;
+use crust::style;
+use crust::Crust;
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::io::{self, Read, Write};
@@ -307,16 +310,16 @@ pub fn read_key(raw: &RawGuard) -> Key {
 // ------------------------------------------------------------------ //
 // ANSI helpers
 
-pub fn cyan(s: &str) -> String { format!("\x1b[36m{}\x1b[0m", s) }
-pub fn green(s: &str) -> String { format!("\x1b[32m{}\x1b[0m", s) }
-pub fn dim(s: &str) -> String { format!("\x1b[2m{}\x1b[0m", s) }
-pub fn red(s: &str) -> String { format!("\x1b[31m{}\x1b[0m", s) }
+pub fn cyan(s: &str) -> String { style::styled(s, Some(6), None, "") }
+pub fn green(s: &str) -> String { style::styled(s, Some(2), None, "") }
+pub fn dim(s: &str) -> String { style::dim(s) }
+pub fn red(s: &str) -> String { style::styled(s, Some(1), None, "") }
 
 /// Emit OSC 7 so the terminal (wezterm / glass) tracks the cwd.
 pub fn emit_osc7(path: &str) {
     let host = fs::read_to_string("/proc/sys/kernel/hostname")
         .unwrap_or_default().trim().to_string();
-    print!("\x1b]7;file://{}{}\x07", host, path);
+    Crust::set_cwd(&host, &path);
     let _ = io::stdout().flush();
 }
 
@@ -349,12 +352,15 @@ pub fn list_bookmarks() {
 
     let mut index = 0usize;
     println!("Select session (\u{2191}/\u{2193}/j/k move, J/K reorder, Enter select, d delete, q quit):\n");
-    print!("\x1b[?25l");
+    print!("{}", seq::HIDE);
     let raw = RawGuard::new();
-    let Some(raw) = raw else { print!("\x1b[?25h"); return };
+    let Some(raw) = raw else { print!("{}", seq::SHOW); return };
 
-    let clear_line = "\x1b[2K\r";
-    let restore = |n: usize| { print!("{}", "\x1b[2K\r\n".repeat(n)); print!("\x1b[{}A", n); };
+    let clear_line = format!("{}\r", seq::ERASE_LINE);
+    let restore = |n: usize| {
+        print!("{}", format!("{}\r\n", seq::ERASE_LINE).repeat(n));
+        print!("{}", seq::up(n as u16));
+    };
 
     loop {
         for (i, it) in items.iter().enumerate() {
@@ -365,7 +371,7 @@ pub fn list_bookmarks() {
             let line = format!("{} \u{2192} {}{}", cyan(&it.tags.join(", ")), dim(&it.path), status);
             if i == index { println!("\u{25b8} {}", line); } else { println!("  {}", line); }
         }
-        print!("\x1b[{}A", items.len());
+        print!("{}", seq::up(items.len() as u16));
         let _ = std::io::stdout().flush();
 
         match read_key(&raw) {
@@ -383,7 +389,7 @@ pub fn list_bookmarks() {
             },
             Key::Delete => {
                 let old_size = items.len();
-                print!("\x1b[{}B{}", old_size, clear_line);
+                print!("{}{}", seq::down(old_size as u16), clear_line);
                 print!("Delete '{}'? (y/n) ", items[index].tags.join(", "));
                 let _ = std::io::stdout().flush();
                 let confirm = matches!(read_key(&raw), Key::Char(b'y') | Key::Char(b'Y'));
@@ -392,22 +398,22 @@ pub fn list_bookmarks() {
                     rebuild_and_save(&items);
                     if index >= items.len() && index > 0 { index = items.len() - 1; }
                     if items.is_empty() {
-                        print!("\x1b[{}A", old_size);
+                        print!("{}", seq::up(old_size as u16));
                         restore(old_size + 1);
                         println!("All bookmarks deleted.");
                         break;
                     }
-                    print!("{}\x1b[{}A", clear_line, old_size);
+                    print!("{}{}", clear_line, seq::up(old_size as u16));
                     restore(old_size);
                 } else {
-                    print!("{}\x1b[{}A", clear_line, old_size);
+                    print!("{}{}", clear_line, seq::up(old_size as u16));
                 }
             }
             Key::Enter => {
                 restore(items.len());
                 let it = &items[index];
                 if it.exists {
-                    print!("\x1b[?25h");
+                    print!("{}", seq::SHOW);
                     let _ = std::io::stdout().flush();
                     drop(raw);
                     resume_session(&it.id, &it.path);
@@ -420,7 +426,7 @@ pub fn list_bookmarks() {
             _ => {}
         }
     }
-    print!("\x1b[?25h");
+    print!("{}", seq::SHOW);
     let _ = std::io::stdout().flush();
 }
 

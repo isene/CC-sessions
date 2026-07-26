@@ -10,6 +10,7 @@ repository = "https://github.com/isene/CC-sessions"
 [dependencies]
 # preserve_order: the bookmarks file's session order IS the picker
 # order (J/K reorder persists) — a sorted map would scramble it.
+crust = { version = "0.1", path = "../crust", package = "fe2o3-crust" }
 serde_json = { version = "1", features = ["preserve_order"] }
 libc = "0.2"
 
