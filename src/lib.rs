@@ -365,10 +365,9 @@ pub fn list_bookmarks() {
     loop {
         for (i, it) in items.iter().enumerate() {
             print!("{}", clear_line);
-            let status = if !it.exists { red(" [NOT FOUND]") }
-                else if it.running { green(" \u{25cf}") }
-                else { String::new() };
-            let line = format!("{} \u{2192} {}{}", cyan(&it.tags.join(", ")), dim(&it.path), status);
+            let run = if it.running { green("\u{25cf}") } else { " ".to_string() };
+            let status = if !it.exists { red(" [NOT FOUND]") } else { String::new() };
+            let line = format!("{} {} \u{2192} {}{}", run, cyan(&it.tags.join(", ")), dim(&it.path), status);
             if i == index { println!("\u{25b8} {}", line); } else { println!("  {}", line); }
         }
         print!("{}", seq::up(items.len() as u16));
