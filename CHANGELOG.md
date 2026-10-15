@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `/bm #pa` stored the tag as "#pa". fleet reads a '#' as a comment, so that
+  session could never get a workspace or colour. cc-bookmark now drops a
+  leading '#', and `cc #pa` / `cc -d #pa` find the plain tag.
+
 ## [2.0.0] - 2026-07-22
 
 ### Changed

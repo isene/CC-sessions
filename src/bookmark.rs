@@ -52,7 +52,8 @@ fn main() {
         original_id = Some(current_id);
     }
 
-    let mut tags: Vec<String> = std::env::args().skip(1).collect();
+    let mut tags: Vec<String> = std::env::args().skip(1)
+        .map(|t| clean_tag(&t)).filter(|t| !t.is_empty()).collect();
     // Reserved words = query mode, not tag names.
     if tags.len() == 1
         && matches!(tags[0].to_lowercase().as_str(), "?" | "query" | "status" | "show") {

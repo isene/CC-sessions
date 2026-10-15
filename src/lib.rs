@@ -180,7 +180,14 @@ pub fn fix_ownership(path: &Path) {
 
 pub struct TagMatch { pub id: String, pub path: String }
 
+/// A tag as typed, without the '#' people write in front ("#pa" → "pa").
+/// fleet's config reads '#' as a comment, so a stored "#pa" can never get
+/// a workspace or colour, and the bus would need a "#pa" folder.
+pub fn clean_tag(t: &str) -> String { t.trim_start_matches('#').to_string() }
+
 pub fn find_session_by_tag(tag: &str) -> Option<TagMatch> {
+    let tag = clean_tag(tag);
+    let tag = tag.as_str();
     let b = load_bookmarks();
     for (id, entry) in sessions(&b) {
         let tags = entry.get("tags").and_then(|t| t.as_array());
@@ -502,3 +509,17 @@ pub fn resume_session(session_id: &str, path: &str) {
     std::process::exit(1);
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::clean_tag;
+
+    #[test]
+    fn tag_loses_leading_hash() {
+        assert_eq!(clean_tag("#assistant"), "assistant");
+        assert_eq!(clean_tag("##pa"), "pa");
+        assert_eq!(clean_tag("ci"), "ci");
+        assert_eq!(clean_tag("c#"), "c#");
+        assert_eq!(clean_tag("#"), "");
+    }
+}
